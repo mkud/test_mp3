@@ -14,7 +14,8 @@ using namespace std;
 #define PATH_SEPARATOR "/"
 #endif
 
-int get_count_of_cores() {
+// this should be cross-platform
+int get_count_of_cpu_cores() {
 #ifdef WIN32
 	SYSTEM_INFO sysinfo;
 	GetSystemInfo(&sysinfo);
@@ -22,14 +23,14 @@ int get_count_of_cores() {
 #else
 	return sysconf(_SC_NPROCESSORS_ONLN);
 #endif
-
 }
 
-string szWavExtension = ".wav";
+// files with this extension should be converted. Should be lowercase.
+string g_szFileConvertExtension = ".wav";
 
-CThreadCounter cntr;
+CThreadCounter g_cntrThread;
 
-void GetListOfWavFiles(char *szDir, CProtectedList &list_Files) {
+int GetListOfFilesForConvert(char *szDir, CProtectedList &list_Files) {
 	struct dirent *ent;
 	DIR *dir;
 	if ((dir = opendir(szDir)) != NULL) {
@@ -37,9 +38,9 @@ void GetListOfWavFiles(char *szDir, CProtectedList &list_Files) {
 		while ((ent = readdir(dir)) != NULL) {
 			//Checking if this is *.wav file
 			string curName = ent->d_name;
-			for (string::reverse_iterator szEnd = szWavExtension.rbegin(), szEnd2 = curName.rbegin();
+			for (string::reverse_iterator szEnd = g_szFileConvertExtension.rbegin(), szEnd2 = curName.rbegin();
 					szEnd2 != curName.rend(); szEnd++, szEnd2++) {
-				if (szEnd == szWavExtension.rend()) {
+				if (szEnd == g_szFileConvertExtension.rend()) {
 					list_Files.AppendValueUnsafe(curName);
 					break;
 				}
@@ -50,24 +51,25 @@ void GetListOfWavFiles(char *szDir, CProtectedList &list_Files) {
 		closedir(dir);
 	} else {
 		/* could not open directory */
-		perror("");
-		return;
+		return 0;
 	}
+	return 1;
 }
 
 static void* ToMP3Worker(void *listOfFiles) {
 	int read, write;
 	CProtectedList *list_Files = (CProtectedList*) listOfFiles;
-	string sz1;
+	string szCurrentFileName;
 
-	while (list_Files->GetNextValueSafe(sz1)) {
+	while (list_Files->GetNextValueSafe(szCurrentFileName)) {
 
-//From this I used a standart way to encoding
-//Very simply, without error check. TODO - by the way.
+//From this I used a standard way to encoding
+//Very simply, without error check.
 
-		FILE *wav = fopen((list_Files->GetDirectory() + PATH_SEPARATOR + sz1).c_str(), "rb");
+		FILE *wav = fopen((list_Files->GetDirectory() + PATH_SEPARATOR + szCurrentFileName).c_str(), "rb");
 		FILE *mp3 = fopen(
-				(list_Files->GetDirectory() + PATH_SEPARATOR + sz1.substr(0, sz1.length() - 4) + ".mp3").c_str(), "wb");
+				(list_Files->GetDirectory() + PATH_SEPARATOR
+						+ szCurrentFileName.substr(0, szCurrentFileName.length() - 4) + ".mp3").c_str(), "wb");
 
 		const int WAV_SIZE = 8192;
 		const int MP3_SIZE = 8192;
@@ -104,23 +106,27 @@ static void* ToMP3Worker(void *listOfFiles) {
 		fclose(mp3);
 		fclose(wav);
 	}
-	cntr.DecrementCount();
+	g_cntrThread.DecrementCount();
 	return 0;
 
 }
 
 int main(int argc, char *argv[]) {
-	CProtectedList list_Files(argv[1]);
-	GetListOfWavFiles(argv[1], list_Files);
 
-	int cnt = get_count_of_cores();
-	for (int cnt = get_count_of_cores(); cnt; cnt--){
-		cntr.IncrementCount();
-		pthread_t t1;
-		pthread_create(&t1, NULL, ToMP3Worker, &list_Files);
+	//Get all *.wav files from DIR
+	CProtectedList listFilesForConvert(argv[1]);
+	if (!GetListOfFilesForConvert(argv[1], listFilesForConvert))
+		return 1;
+
+	// starts the number of threads = the number of CPU
+	for (int iCntOfCPU = get_count_of_cpu_cores(); iCntOfCPU; iCntOfCPU--) {
+		g_cntrThread.IncrementCount();
+		pthread_t tmpThreadID;
+		pthread_create(&tmpThreadID, NULL, ToMP3Worker, &listFilesForConvert);
 	}
 
 	// Here can use pthread_join()
 	// But condition variables is more funny)))
-	cntr.WaitFinish();
+	g_cntrThread.WaitFinish();
+	return 0;
 }

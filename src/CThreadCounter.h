@@ -1,7 +1,7 @@
 /*
  * CThreadCounter.h
  *
- *  Created on: 2 нояб. 2019 г.
+ *  Created on: 2 nov 2019 г.
  *      Author: maxx
  */
 
@@ -11,14 +11,17 @@
 #include <pthread.h>
 
 class CThreadCounter {
-	int threadCount;
+	int m_iThreadCount;
 	pthread_cond_t m_condVar;
 	pthread_mutex_t m_mutexLock;
 public:
 	CThreadCounter();
 	virtual ~CThreadCounter();
+
 	void DecrementCount();
 	void IncrementCount();
+
+	// releases when all threads have been completed
 	void WaitFinish();
 };
 

@@ -1,7 +1,7 @@
 /*
  * CProtectedList.cpp
  *
- *  Created on: 1 нояб. 2019 г.
+ *  Created on: 1 nov 2019 г.
  *      Author: maxx
  */
 

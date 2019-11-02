@@ -16,11 +16,17 @@ using namespace std;
 class CProtectedList {
 	list<string> m_listOfStrings;
 	pthread_mutex_t m_mutexLock;
+
+	//The directory is used simply to simplify transferring it to the working threads.
 	string m_szDirectory;
 public:
 	CProtectedList(string szDirectory);
 	virtual ~CProtectedList();
+
+	//Not need to be safe - used only in the main thread
 	void AppendValueUnsafe(string szValue);
+
+	//Concurent part
 	int GetNextValueSafe(string &retVal);
 
 	string GetDirectory() {
